@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Tetrix</string>
+    <string name="newGame">New Game</string>
+    <string name="resetGame">Reset Game</string>
+    <string name="Exit">Exit</string>
+    <string name="highScore">High Score</string>
+    <string name="currentScore">Current Score</string>
+    <string name="btnRestart">Restart</string>
+</resources>
