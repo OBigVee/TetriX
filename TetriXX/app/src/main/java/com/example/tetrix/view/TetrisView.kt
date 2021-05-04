@@ -21,6 +21,7 @@ import com.example.tetrix.models.Block
 class TetrisView:View{
     private  val paint = Paint()
     private var lastMove: Long = 0
+    private var model: AppModel? = null
     private var activity: GameActivity? = null
     private val viewHandler = ViewHandler(this)
     private var cellSize: Dimension = Dimension(0,0)
@@ -39,5 +40,141 @@ class TetrisView:View{
         private val DELAY = 500
         private val BLOCK_OFFSET = 2
         private val FRAME_OFFSET_BASE = 10
+    }
+
+    private class ViewHandler(private  val owner: TetrisView): Handler(){
+        override fun handleMessage(msg: Message) {
+            if(msg.what ==0){
+                if(owner.model != null){
+                    if (owner.model!!.isGameOver()){
+                        owner.model?.endGame()
+                        Toast.makeText(owner.activity, "Game Over",
+                        Toast.LENGTH_LONG).show();
+                    }
+                    if (owner.model!!.isGameActive()){
+                        owner.setGameCommandWithDelay(AppModel.Motions.DOWN)
+                    }
+                }
+            }
+        }
+        fun sleep(delay:Long){
+            /**
+             * sleep() method simply removes any prev sent message and sends
+             * a new message with  a delay specified by the delay argument
+             */
+            this.removeMessages(0)
+            sendMessageDelayed(obtainMessage(0), delay)
+        }
+    }
+
+    private data class Dimension(val width: Int, val height:Int)
+
+
+    fun setModel(model:AppModel){
+        // set the current model in use by the view
+        this.model = model
+    }
+
+    fun setActivity(gameActivity: GameActivity){
+        // set the activity in use
+        this.activity = gameActivity
+    }
+
+    fun setGameCommand(move:AppModel.Motions){
+        if (null != model && (model?.currentState == AppModel.Statuses.ACTIVE.name)){
+            if (AppModel.Motions.DOWN == move){
+                model?.generateField(move.name)
+                invalidate()
+                return
+            }
+            setGameCommandWithDelay(move)
+        }
+    }
+
+    fun setGameCommandWithDelay(move:AppModel.Motions){
+        val now = System.currentTimeMillis()
+
+        if (now - lastMove > DELAY){
+
+            model?.generateField(move.name)
+            invalidate()
+            lastMove = now
+        }
+        updateScores()
+        viewHandler.sleep(DELAY.toLong())
+    }
+
+    override fun onDraw(canvas: Canvas){
+        // override the superclass
+        super.onDraw(canvas) // call on draw in the super class
+        drawFrame(canvas) // draw the frame for TetrixView
+
+        if (model != null){
+            for (i in 0 until FieldConstants.ROW_COUNT.value){
+                for (j in 0 until FieldConstants.COLUMN_COUNT.value){
+                    /**
+                     * each cells are drawn within the canvas
+                     * by using the drawCell() functions
+                     */
+                    drawCell(canvas, i, j)
+                }
+            }
+        }
+    }
+
+    private fun drawFrame(canvas: Canvas){
+        paint.color = Color.LTGRAY
+
+        canvas.drawRect(frameOffset.width.toFloat(),
+        frameOffset.height.toFloat(),width-frameOffset.width.toFloat(),
+        height - frameOffset.height.toFloat(), paint)
+    }
+
+    private fun drawCell(canvas: Canvas, row: Int, col:Int){
+        val cellStatus = model?.getCellStatus(row,col)
+
+        if (CellConstants.EMPTY.value != cellStatus){
+            val color = if (CellConstants.EPHEMERAL.value == cellStatus){
+                model?.currentBlock?.color
+            }
+            else{
+                Block.getColor(cellStatus as Byte)
+            }
+            drawCell(canvas, col, row, color as Int)
+        }
+    }
+
+    private fun drawCell(canvas: Canvas, x: Int, y: Int, rgbColor: Int) {
+        paint.color = rgbColor
+
+        val top: Float = (frameOffset.height + y * cellSize.height + BLOCK_OFFSET).toFloat()
+        val left: Float = (frameOffset.width + x * cellSize.width + BLOCK_OFFSET).toFloat()
+        val bottom: Float = (frameOffset.height + (y+1) * cellSize.height - BLOCK_OFFSET).toFloat()
+        val right: Float = (frameOffset.width + (x+1) * cellSize.width - BLOCK_OFFSET).toFloat()
+        val rectangle =  RectF(left, top, right, bottom)
+        canvas.drawRoundRect(rectangle,4F,4F,paint)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        /**
+         * w = width, h = height, oldw=previousWidth, oldh = previousHeight
+         * this function is called when the size of a view has changed
+         */
+
+        super.onSizeChanged(w, h, oldw, oldh)
+        val cellWidth = (width - 2 * FRAME_OFFSET_BASE) /
+                FieldConstants.COLUMN_COUNT.value
+        val cellHeight = (height - 2 * FRAME_OFFSET_BASE)/
+                FieldConstants.ROW_COUNT.value
+        val n = Math.min(cellWidth, cellHeight)
+        this.cellSize = TetrisView.Dimension(n,n)
+        val offsetX = (width - FieldConstants.COLUMN_COUNT.value*n) / 2
+        val offsetY = (height - FieldConstants.ROW_COUNT.value*n) /2
+        this.frameOffset = TetrisView.Dimension(offsetX,offsetY)
+    }
+
+    private fun updateScores(){
+        activity?.tvCurrentScore?.text = "${model?.score}"
+        activity?.tvHighScore?.text = "${activity?.appPreferences?.getHighScore()}"
     }
 }
